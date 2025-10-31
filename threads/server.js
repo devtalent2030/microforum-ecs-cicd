@@ -10,6 +10,12 @@ app.use(function *(next){
   console.log('%s %s - %s', this.method, this.url, ms);
 });
 
+// Health check
+router.get('/health', function *() {
+  this.status = 200;
+  this.body = { ok: true, service: 'threads', uptime: process.uptime() };
+});
+
 router.get('/api/threads', function *() {
   this.body = db.threads;
 });
