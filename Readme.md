@@ -1,158 +1,222 @@
 # microforum-ecs-cicd
 
-> Production-grade, cloud-ready deployment of a microservices forum on **AWS ECS Fargate** with **path-based routing**, **blue/green CI/CD** (CodePipeline/CodeBuild/CodeDeploy), **ECR**, and **Terraform IaC**. Includes local Docker Compose, autoscaling, observability, security hardening, and cost guidance.
+Cloud-ready deployment of the **Microforum** backend as three independent microservices running on **AWS ECS Fargate**, fronted by an **Application Load Balancer** with path-based routing and deployed via a **CodePipeline → CodeBuild → CodeDeploy** CI/CD pipeline. All core infrastructure is defined with **Terraform**.
+
+The repository demonstrates how to take a small Node.js forum backend and give it a production-style architecture: microservices, containers, CI/CD, and Infrastructure as Code.
 
 ---
 
-<p align="center">
-  <img src="https://img.shields.io/badge/AWS-ECS%20Fargate-orange" />
-  <img src="https://img.shields.io/badge/IaC-Terraform-7B42BC" />
-  <img src="https://img.shields.io/badge/CI%2FCD-CodePipeline%2FCodeBuild%2FCodeDeploy-success" />
-  <img src="https://img.shields.io/badge/Containers-Docker-blue" />
-  <img src="https://img.shields.io/badge/License-MIT-lightgrey" />
-</p>
+## 1. Overview
 
-## What this repo demonstrates
+**Microservices**
 
-* **Microservices** (`users`, `posts`, `threads`) containerized with Docker and runnable locally via Docker Compose.
-* **Infrastructure as Code**: VPC, ALB, ECS/Fargate, ECR, IAM, autoscaling, CloudWatch, CodePipeline—declared with Terraform.
-* **Blue/Green Deployments** on ECS via CodeDeploy with health checks & automatic rollback.
-* **Scalability & Resilience**: ALB path-based routing, target tracking autoscaling, multi‑AZ design.
-* **Portability**: Same containers run locally and in the cloud. No machine lock‑in.
-* **Observability & Security**: Service logs/metrics, ALB access logs, least‑privilege IAM, HTTPS via ACM.
+* `users` – user data and profile operations
+* `posts` – forum posts
+* `threads` – thread metadata and grouping
 
----
+Each service:
 
-## Architecture (high-level)
+* Has its own `server.js`, `db.json`, and `Dockerfile`
+* Runs locally via Docker Compose
+* Deploys as its own ECS Fargate service and ALB target group
 
-```mermaid
-flowchart LR
-  U((Users)) -->|HTTPS| ALB[Application Load Balancer]
-  ALB -->|/users/*| TG1((TG Users))
-  ALB -->|/posts/*| TG2((TG Posts))
-  ALB -->|/threads/*| TG3((TG Threads))
+**Key characteristics**
 
-  subgraph Private Subnets
-    TG1 --> S1[ECS Service: users (Fargate)]
-    TG2 --> S2[ECS Service: posts (Fargate)]
-    TG3 --> S3[ECS Service: threads (Fargate)]
-  end
-
-  subgraph CI/CD
-    SRC[(Git Repo)] --> CPL[CodePipeline]
-    CPL --> CB[CodeBuild] --> ECR[(ECR images)]
-    ECR --> CDP[CodeDeploy ECS Blue/Green] --> S1 & S2 & S3
-  end
-```
+* **Microservices**: three services, separate containers, separate target groups
+* **Scalable**: ECS Fargate services behind an ALB, ready for auto scaling
+* **Resilient**: multi-AZ VPC design with public/private subnets
+* **Automated CI/CD**: CodePipeline, CodeBuild, CodeDeploy (ECS blue/green)
+* **IaC**: VPC, ECS, ALB, CI/CD stack defined with Terraform
 
 ---
 
-## Repository layout
+## 2. Architecture
 
-```
-repo-root/
-  users/           # Koa service, Dockerfile, db.json, server.js (+ /health)
-  posts/           # Koa service, Dockerfile, db.json, server.js (+ /health)
-  threads/         # Koa service, Dockerfile, db.json, server.js (+ /health)
-  compose.yaml     # Local orchestration for all services
+### 2.1 Runtime architecture
+
+> **Diagram placeholder**
+> Save your runtime diagram as:
+> `docs/architecture-runtime.png`
+> and reference it here:
+
+![Runtime architecture](docs/architecture-runtime.png)
+
+**Runtime design (high level)**
+
+* 1 × **AWS Region** (e.g., `ca-central-1`)
+* 1 × **VPC** with:
+
+  * 2 × **public subnets** (one per AZ) – ALB + NAT
+  * 2 × **private subnets** (one per AZ) – ECS Fargate tasks
+* **Amazon Route 53** – DNS for `microforum.example.com` → ALB
+* **Application Load Balancer** – internet-facing, path-based routing:
+
+  * `/users/*` → users target group
+  * `/posts/*` → posts target group
+  * `/threads/*` → threads target group
+* **Amazon ECS (Fargate)** – three services:
+
+  * `users` service (tasks across both AZs)
+  * `posts` service
+  * `threads` service
+* **NAT Gateway + Internet Gateway** – outbound internet from private subnets, inbound via ALB only
+* **Amazon ECR** – container images for all three services
+* **Security groups**:
+
+  * ALB SG – HTTP from internet, outbound only to ECS SG
+  * ECS SG – inbound only from ALB SG on the app port
+* **CloudWatch (optional in diagram)** – ECS/ALB logs and metrics
+
+### 2.2 CI/CD pipeline
+
+> **Diagram placeholder**
+> Save your CI/CD diagram as:
+> `docs/architecture-cicd.png`
+> and reference it here:
+
+![CI/CD pipeline](docs/architecture-cicd.png)
+
+**Pipeline flow (high level)**
+
+* Developer pushes code to **CodeCommit** (or GitHub wired into CodePipeline)
+* **CodePipeline** runs:
+
+  * **Source** stage – pull latest commit
+  * **Build** stage – **CodeBuild** runs tests and builds Docker images
+  * **Deploy** stage – **CodeDeploy** performs ECS blue/green deployment
+* **CodeBuild**:
+
+  * Builds images for `users`, `posts`, `threads`
+  * Pushes images to **ECR**
+  * Writes `imagedefinitions.json` to an **S3 artifacts bucket**
+* **CodeDeploy**:
+
+  * Updates ECS services with the new images
+  * Creates a new (green) task set
+  * Shifts traffic from blue → green via ECS/ALB integration
+
+---
+
+## 3. Repository layout
+
+> Adjust if your folders differ slightly.
+
+```bash
+microforum-ecs-cicd/
+  users/
+    Dockerfile
+    server.js
+    db.json
+    package.json
+  posts/
+    Dockerfile
+    server.js
+    db.json
+    package.json
+  threads/
+    Dockerfile
+    server.js
+    db.json
+    package.json
+
+  docker-compose.yml        # Local multi-service dev
+
   infra/
-    terraform/     # VPC, Subnets, ALB, ECR, ECS, IAM, CI/CD, autoscaling
-  buildspecs/      # CodeBuild specs per service
-  docs/            # Diagrams, cost notes, runbooks
+    terraform/
+      # VPC, subnets, IGW, NAT, SGs
+      # ECS cluster, task defs, services
+      # ALB + target groups + listeners
+      # ECR repos
+      # (optionally) CodePipeline/CodeBuild/CodeDeploy
+
+  buildspecs/
+    # buildspec files for CodeBuild
+
+  docs/
+    architecture-runtime.png   # runtime diagram (inserted in README)
+    architecture-cicd.png      # CI/CD diagram (inserted in README)
+    # (optional) additional docs
 ```
 
 ---
 
-## R1–R7 Requirement Mapping
+## 4. Local development
 
-| Req | Description            | How it’s satisfied                                                                        |
-| --- | ---------------------- | ----------------------------------------------------------------------------------------- |
-| R1  | Design diagram         | Mermaid diagram in README + docs/architecture.png                                         |
-| R2  | Cost optimized         | Fargate (serverless), right-size tasks, autoscaling, minimal LCUs, NAT avoidance guidance |
-| R3  | Microservices          | 3 ECS services (users/posts/threads), independent scaling                                 |
-| R4  | Portability            | Dockerized services; same images local & prod                                             |
-| R5  | Scalability/resilience | ALB path-based routing, health checks, multi‑AZ, autoscaling                              |
-| R6  | Automated CI/CD        | CodePipeline → CodeBuild → CodeDeploy (ECS blue/green)                                    |
-| R7  | IaC                    | Terraform modules for all AWS resources                                                   |
-
----
-
-## Quickstart (Local)
-
-**Prereqs:** Docker Desktop (or engine), Make (optional), Node.js (if you run services directly)
+Run all three microservices locally using Docker Compose.
 
 ```bash
-# from repo-root
+# From repo root
 docker compose up --build
-# Health checks
-curl -s localhost:3001/health | jq
-curl -s localhost:3002/health | jq
-curl -s localhost:3003/health | jq
+
+# Health checks (example ports)
+curl http://localhost:3001/health
+curl http://localhost:3002/health
+curl http://localhost:3003/health
 ```
+
+Each service also responds at `/` with a simple readiness message for quick smoke-testing.
 
 ---
 
-## Cloud Deploy (AWS)
+## 5. Deploying to AWS (Terraform)
 
-**Prereqs:** Terraform, AWS CLI (with creds), an ACM cert for your domain (optional for HTTPS), an S3 bucket & DynamoDB table for TF state (recommended).
+> Assumes AWS credentials are configured and (optionally) a remote backend (S3 + DynamoDB) is set up.
 
 ```bash
-# 1) Initialize & preview
 cd infra/terraform
+
 terraform init
 terraform plan -out tf.plan
-
-# 2) Apply
 terraform apply tf.plan
 ```
 
-Output values will include: ALB DNS name, ECR repo URIs, ECS cluster name.
+Typical outputs:
+
+* ALB DNS name (public entry point)
+* ECS cluster name
+* ECS service names for users/posts/threads
+* ECR repository URIs
+
+Once applied, the architecture should match the runtime diagram in `docs/`.
 
 ---
 
-## CI/CD (ECR → ECS Blue/Green)
+## 6. CI/CD at a glance
 
-* **Source**: GitHub/CodeCommit main branch.
-* **Build**: CodeBuild builds & scans images (Trivy optional), pushes to ECR, emits `imagedefinitions.json`.
-* **Deploy**: CodeDeploy ECS blue/green per service; traffic shifts only if health checks pass; auto‑rollback on alarms.
+Once the CI/CD stack is provisioned (via Terraform or manually):
 
-> **Note:** This repo includes example buildspecs and Terraform to provision CodePipeline/Build/Deploy. Update variables for your account/region and Git connection.
+1. Push to `main` (or your chosen branch).
+2. **CodePipeline** pulls the commit from the repo and triggers **CodeBuild**.
+3. **CodeBuild** builds and tags images for all three services, pushes them to **ECR**, and uploads `imagedefinitions.json` (and other artifacts) to **S3`.
+4. **CodeDeploy** updates ECS services with the new images (blue/green) and shifts traffic on success.
 
----
-
-## Cost Notes
-
-* Fargate pricing = vCPU + GB‑RAM × task‑hours. Start small (e.g., 0.25 vCPU/0.5–1GB) and scale up only as needed.
-* ALB hourly + LCU (requests/bandwidth). For student envs, keep traffic low and stop non‑prod at night.
-* NAT is costly—prefer VPC endpoints or public egress only where safe.
+This provides a repeatable, auditable path from commit → container → running tasks on ECS.
 
 ---
 
-## Security & Observability
+## 7. Capabilities summary
 
-* **Security**: least‑privilege IAM roles; ECR private; secrets via SSM Parameter Store; HTTPS with ACM; SGs locked to necessary ports.
-* **Logging/Monitoring**: CloudWatch Logs per task; ALB access logs; autoscaling metrics; optional X‑Ray.
-* **Quality Gates**: lint/tests in CI; container scan (fail on CRITICAL); post‑deploy smoke tests.
-
----
-
-## Roadmap
-
-* Add `/version` endpoint exposing commit SHA.
-* Canary deploys with weighted listeners.
-* Integration tests against ALB in CI.
-* SRE runbooks (rollback, incident checklists).
+| Area                     | How it is addressed                                                         |
+| ------------------------ | --------------------------------------------------------------------------- |
+| Design                   | Runtime + CI/CD diagrams in `docs/`, referenced in README                   |
+| Cost & efficiency        | Fargate instead of fixed EC2, shared ALB, multi-AZ with right-sizing        |
+| Microservices            | Separate `users`, `posts`, `threads` services and target groups             |
+| Portability              | Docker images, `docker-compose.yml` for local dev, ECS in production        |
+| Scalability & resilience | Multi-AZ, ALB + health checks, ECS services ready for auto scaling          |
+| Automated delivery       | CodePipeline → CodeBuild → CodeDeploy pipeline definition (infra/terraform) |
+| Infrastructure as Code   | Terraform for VPC, ECS, ALB, ECR, and CI/CD resources                       |
 
 ---
 
-## License
+## 8. Notes
 
-MIT — see [LICENSE](LICENSE).
+* The focus here is backend and platform: ECS, networking, CI/CD, and observability.
+* Frontend or additional data stores (for example, RDS/DynamoDB instead of `db.json`) can be added on top of the same pattern without changing the core deployment model.
 
-## Author / Contact
+---
 
-**Talent Nyota** — Cloud & Platform Engineering
+## 9. Maintainer
 
-* Email: [trnyota@gmail.com](mailto:trnyota@gmail.com)
-* LinkedIn: [https://www.linkedin.com/in/talentnyota/](https://www.linkedin.com/in/talentnyota/)
+Maintained as a demonstration of production-style AWS microservices and DevOps practices.
+
 * GitHub: [https://github.com/devtalent2030](https://github.com/devtalent2030)
