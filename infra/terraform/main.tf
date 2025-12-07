@@ -78,8 +78,6 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# (For a simple assignment you can skip NAT gateways; private subnets will still work for ECS Fargate.)
-
 # ----------------------
 # ECS Cluster
 # ----------------------
@@ -146,7 +144,7 @@ resource "aws_security_group" "ecs_tasks_sg" {
 }
 
 # ----------------------
-# Application Load Balancer + Target Groups
+# Application Load Balancer
 # ----------------------
 resource "aws_lb" "app" {
   name               = "${var.project_name}-alb"
@@ -160,7 +158,9 @@ resource "aws_lb" "app" {
   }
 }
 
-# One target group per service
+# ----------------------
+# Base target groups (used by users/threads)
+# ----------------------
 resource "aws_lb_target_group" "service_tg" {
   for_each = toset(local.services)
 
@@ -180,10 +180,73 @@ resource "aws_lb_target_group" "service_tg" {
   }
 
   tags = {
-    Name = "${var.project_name}-${each.key}-tg"
+    Name    = "${var.project_name}-${each.key}-tg"
+    Service = each.key
   }
 }
 
+# ----------------------
+# POSTS - blue/green target groups for CodeDeploy
+# ----------------------
+resource "aws_lb_target_group" "posts_blue" {
+  name        = "${var.project_name}-posts-blue"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.this.id
+
+  health_check {
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Service = "posts"
+    Color   = "blue"
+  }
+}
+
+resource "aws_lb_target_group" "posts_green" {
+  name        = "${var.project_name}-posts-green"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.this.id
+
+  health_check {
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Service = "posts"
+    Color   = "green"
+  }
+}
+
+# Map each service to the target group the ALB should send to.
+# For posts, we use posts_blue (so CodeDeploy can manage blue/green).
+locals {
+  service_tg_arns = {
+    users   = aws_lb_target_group.service_tg["users"].arn
+    threads = aws_lb_target_group.service_tg["threads"].arn
+    posts   = aws_lb_target_group.posts_blue.arn
+  }
+}
+
+# ----------------------
+# Listener + path-based routing
+# ----------------------
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.app.arn
   port              = 80
@@ -191,11 +254,10 @@ resource "aws_lb_listener" "http" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.service_tg["users"].arn
+    target_group_arn = local.service_tg_arns["users"]
   }
 }
 
-# Path-based routing rules
 resource "aws_lb_listener_rule" "service_rules" {
   for_each = {
     users   = "/users*"
@@ -204,7 +266,7 @@ resource "aws_lb_listener_rule" "service_rules" {
   }
 
   listener_arn = aws_lb_listener.http.arn
-  priority     = lookup(
+  priority = lookup(
     {
       users   = 10
       posts   = 20
@@ -216,7 +278,7 @@ resource "aws_lb_listener_rule" "service_rules" {
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.service_tg[each.key].arn
+    target_group_arn = local.service_tg_arns[each.key]
   }
 
   condition {
@@ -260,7 +322,7 @@ resource "aws_cloudwatch_log_group" "ecs" {
 }
 
 # ----------------------
-# Task Definitions + Services (for users/posts/threads)
+# Task Definitions
 # ----------------------
 resource "aws_ecs_task_definition" "service" {
   for_each = toset(local.services)
@@ -296,6 +358,9 @@ resource "aws_ecs_task_definition" "service" {
   ])
 }
 
+# ----------------------
+# ECS Services (users, posts, threads)
+# ----------------------
 resource "aws_ecs_service" "service" {
   for_each = toset(local.services)
 
@@ -306,13 +371,13 @@ resource "aws_ecs_service" "service" {
   desired_count   = 1
 
   network_configuration {
-    subnets         = aws_subnet.private[*].id
-    security_groups = [aws_security_group.ecs_tasks_sg.id]
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs_tasks_sg.id]
     assign_public_ip = false
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.service_tg[each.key].arn
+    target_group_arn = local.service_tg_arns[each.key]
     container_name   = each.key
     container_port   = 3000
   }
@@ -327,9 +392,8 @@ resource "aws_ecs_service" "service" {
 }
 
 # ----------------------
-# (Optional) Auto Scaling hooks – you can expand later
+# Auto Scaling registration
 # ----------------------
-# Example: mark ECS services as scalable targets
 resource "aws_appautoscaling_target" "ecs_service" {
   for_each = aws_ecs_service.service
 

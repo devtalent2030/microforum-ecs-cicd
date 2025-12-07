@@ -45,7 +45,7 @@ Each service:
 
 ![Runtime architecture](docs/architecture-runtime.png)
 
-**Runtime design (high level)**
+**Runtime design**
 
 * 1 × **AWS Region** (e.g., `ca-central-1`)
 * 1 × **VPC** with:
@@ -73,18 +73,11 @@ Each service:
 
 ### 2.2 CI/CD pipeline
 
-> 
-> 
-> 
-> 
-> 
-> 
-> 
-> 
+
 
 ![CI/CD pipeline](docs/architecture-cicd.png)
 
-**Pipeline flow (high level)**
+**Pipeline flow**
 
 * Developer pushes code to **CodeCommit** (or GitHub wired into CodePipeline)
 * **CodePipeline** runs:
@@ -107,7 +100,7 @@ Each service:
 
 ## 3. Repository layout
 
-> Adjust if your folders differ slightly.
+
 
 ```bash
 microforum-ecs-cicd/

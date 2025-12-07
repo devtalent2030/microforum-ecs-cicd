@@ -2,15 +2,28 @@
 # CI/CD – SHARED
 ########################
 
+# Get current account ID so the S3 bucket name is globally unique
+data "aws_caller_identity" "current" {}
+
 # Artifact bucket for CodePipeline
 resource "aws_s3_bucket" "codepipeline_artifacts" {
-  bucket = "${var.project_name}-codepipeline-artifacts"
+  bucket = "${var.project_name}-codepipeline-artifacts-${data.aws_caller_identity.current.account_id}"
 
   force_destroy = true
 
   tags = {
     Name = "${var.project_name}-codepipeline-artifacts"
   }
+}
+
+# Block all public access to the artifacts bucket
+resource "aws_s3_bucket_public_access_block" "codepipeline_artifacts_block" {
+  bucket = aws_s3_bucket.codepipeline_artifacts.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 ########################
@@ -86,17 +99,11 @@ resource "aws_codebuild_project" "microforum_build" {
       name  = "AWS_REGION"
       value = var.aws_region
     }
-
-    # Optional: pass ECR repos here instead of in buildspec
-    # environment_variable {
-    #   name  = "USERS_REPO"
-    #   value = aws_ecr_repository.users.repository_url
-    # }
   }
 
   source {
-    type            = "CODEPIPELINE"
-    buildspec       = "buildspecs/buildspec-microforum.yml"
+    type      = "CODEPIPELINE"
+    buildspec = "buildspecs/buildspec-microforum.yml"
   }
 
   logs_config {
@@ -203,16 +210,16 @@ resource "aws_codedeploy_app" "microforum" {
 
 # NOTE: For real blue/green, your ECS service must:
 # - use deployment_controller { type = "CODE_DEPLOY" }
-# - have two target groups (blue + green) behind the ALB for that service. :contentReference[oaicite:2]{index=2}
+# - have two target groups (blue + green) behind the ALB for that service.
 # Below assumes you have:
 #   aws_ecs_service.service["posts"]
 #   aws_lb_target_group.posts_blue
 #   aws_lb_target_group.posts_green
 
 resource "aws_codedeploy_deployment_group" "microforum" {
-  app_name              = aws_codedeploy_app.microforum.name
-  deployment_group_name = "${var.project_name}-dg"
-  service_role_arn      = aws_iam_role.codedeploy_role.arn
+  app_name               = aws_codedeploy_app.microforum.name
+  deployment_group_name  = "${var.project_name}-dg"
+  service_role_arn       = aws_iam_role.codedeploy_role.arn
   deployment_config_name = "CodeDeployDefault.ECSAllAtOnce"
 
   auto_rollback_configuration {
@@ -312,7 +319,7 @@ resource "aws_codepipeline" "microforum" {
       name            = "DeployToECSBlueGreen"
       category        = "Deploy"
       owner           = "AWS"
-      provider        = "CodeDeploy"        # ECS blue/green deploy action through CodeDeploy :contentReference[oaicite:3]{index=3}
+      provider        = "CodeDeploy" # ECS blue/green deploy action through CodeDeploy
       version         = "1"
       input_artifacts = ["BuildOutput"]
 
@@ -322,7 +329,7 @@ resource "aws_codepipeline" "microforum" {
         TaskDefinitionTemplateArtifact = "BuildOutput"
         TaskDefinitionTemplatePath     = "taskdef.json"
         AppSpecTemplateArtifact        = "BuildOutput"
-        AppSpecTemplatePath           = "appspec.json"
+        AppSpecTemplatePath            = "appspec.json"
       }
     }
   }
