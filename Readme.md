@@ -34,10 +34,14 @@ Each service:
 
 ### 2.1 Runtime architecture
 
-> **Diagram placeholder**
-> Save your runtime diagram as:
-> `docs/architecture-runtime.png`
-> and reference it here:
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
 
 ![Runtime architecture](docs/architecture-runtime.png)
 
@@ -69,10 +73,14 @@ Each service:
 
 ### 2.2 CI/CD pipeline
 
-> **Diagram placeholder**
-> Save your CI/CD diagram as:
-> `docs/architecture-cicd.png`
-> and reference it here:
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
 
 ![CI/CD pipeline](docs/architecture-cicd.png)
 
