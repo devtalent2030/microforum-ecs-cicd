@@ -120,7 +120,7 @@ microforum-ecs-cicd/
     db.json
     package.json
 
-  docker-compose.yml        # Local multi-service dev
+  docker-compose.yml        
 
   infra/
     terraform/
