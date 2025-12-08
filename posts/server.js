@@ -17,8 +17,12 @@ router.get('/health', function *() {
 });
 
 //
-// ---------- API-style routes ----------
+// -------- API-style routes --------
 //
+router.get('/api/posts', function *() {
+  this.body = db.posts;
+});
+
 router.get('/api/posts/in-thread/:threadId', function *() {
   const id = parseInt(this.params.threadId);
   this.body = db.posts.filter((post) => post.thread == id);
@@ -29,16 +33,12 @@ router.get('/api/posts/by-user/:userId', function *() {
   this.body = db.posts.filter((post) => post.user == id);
 });
 
-router.get('/api/posts', function *() {
-  this.body = db.posts;
-});
-
 router.get('/api/', function *() {
   this.body = "API ready to receive requests";
 });
 
 //
-// ---------- Friendly routes for ALB (/posts...) ----------
+// -------- Friendly routes for ALB (/posts...) --------
 //
 router.get('/posts', function *() {
   this.body = db.posts;
@@ -55,7 +55,7 @@ router.get('/posts/by-user/:userId', function *() {
 });
 
 //
-// ---------- Root ----------
+// -------- Root --------
 //
 router.get('/', function *() {
   this.body = "Ready to receive requests";
@@ -66,4 +66,4 @@ app.use(router.allowedMethods());
 
 app.listen(3000);
 
-console.log('Worker started');
+console.log('Posts worker started');

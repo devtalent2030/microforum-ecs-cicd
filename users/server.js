@@ -3,7 +3,7 @@ const router = require('koa-router')();
 const db = require('./db.json');
 
 // Log requests
-app.use(function *(next) {
+app.use(function *(next){
   const start = new Date;
   yield next;
   const ms = new Date - start;
@@ -16,7 +16,9 @@ router.get('/health', function *() {
   this.body = { ok: true, service: 'users', uptime: process.uptime() };
 });
 
+//
 // -------- API-style routes --------
+//
 router.get('/api/users', function *() {
   this.body = db.users;
 });
@@ -30,7 +32,9 @@ router.get('/api/', function *() {
   this.body = "API ready to receive requests";
 });
 
+//
 // -------- Friendly routes for ALB (/users...) --------
+//
 router.get('/users', function *() {
   this.body = db.users;
 });
@@ -40,7 +44,9 @@ router.get('/users/:userId', function *() {
   this.body = db.users.find((user) => user.id == id);
 });
 
-// Root
+//
+// -------- Root --------
+//
 router.get('/', function *() {
   this.body = "Ready to receive requests";
 });
@@ -50,4 +56,4 @@ app.use(router.allowedMethods());
 
 app.listen(3000);
 
-console.log('Worker started');
+console.log('Users worker started');
