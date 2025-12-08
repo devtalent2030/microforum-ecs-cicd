@@ -1,0 +1,21 @@
+{
+  "family": "microforum-posts-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::387324564533:role/microforum-ecs-execution-role",
+  "containerDefinitions": [
+    {
+      "name": "posts",
+      "image": "387324564533.dkr.ecr.ca-central-1.amazonaws.com/microforum-posts:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  ]
+}

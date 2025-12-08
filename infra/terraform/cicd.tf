@@ -320,26 +320,8 @@ resource "aws_codepipeline" "microforum" {
     }
   }
 
-  # -------- Stage 2: Build (CodeBuild) --------
-  stage {
-    name = "Build"
-
-    action {
-      name             = "BuildImages"
-      category         = "Build"
-      owner            = "AWS"
-      provider         = "CodeBuild"
-      version          = "1"
-      input_artifacts  = ["SourceOutput"]
-      output_artifacts = ["BuildOutput"]
-
-      configuration = {
-        ProjectName = aws_codebuild_project.microforum_build.name
-      }
-    }
-  }
-
-  # -------- Stage 3: Deploy (ECS Blue/Green via CodeDeploy) --------
+    # -------- Stage 3: Deploy (ECS Blue/Green via CodeDeploy) --------
+    # -------- Stage 3: Deploy (ECS Blue/Green via CodeDeploy) --------
   stage {
     name = "Deploy"
 
@@ -347,16 +329,22 @@ resource "aws_codepipeline" "microforum" {
       name     = "DeployToECSBlueGreen"
       category = "Deploy"
       owner    = "AWS"
-      # IMPORTANT: use CodeDeployToECS for ECS blue/green deploy
-      provider        = "CodeDeployToECS"
-      version         = "1"
-      input_artifacts = ["BuildOutput"]
+      provider = "CodeDeployToECS"
+      version  = "1"
+
+      # Only SourceOutput here – this is the repo ZIP with appspec.yaml + taskdef.json
+      input_artifacts = ["SourceOutput"]
 
       configuration = {
-        ApplicationName                = aws_codedeploy_app.microforum.name
-        DeploymentGroupName            = aws_codedeploy_deployment_group.microforum.deployment_group_name
-        TaskDefinitionTemplateArtifact = "BuildOutput"
-        AppSpecTemplateArtifact        = "BuildOutput"
+        ApplicationName     = aws_codedeploy_app.microforum.name
+        DeploymentGroupName = aws_codedeploy_deployment_group.microforum.deployment_group_name
+
+        # Tell CodeDeploy: templates are in the SourceOutput artifact
+        TaskDefinitionTemplateArtifact = "SourceOutput"
+        TaskDefinitionTemplatePath     = "taskdef.json"
+
+        AppSpecTemplateArtifact = "SourceOutput"
+        AppSpecTemplatePath     = "appspec.yaml"
       }
     }
   }
