@@ -16,6 +16,7 @@ router.get('/health', function *() {
   this.body = { ok: true, service: 'threads', uptime: process.uptime() };
 });
 
+// -------- API-style routes --------
 router.get('/api/threads', function *() {
   this.body = db.threads;
 });
@@ -29,6 +30,17 @@ router.get('/api/', function *() {
   this.body = "API ready to receive requests";
 });
 
+// -------- Friendly routes for ALB (/threads...) --------
+router.get('/threads', function *() {
+  this.body = db.threads;
+});
+
+router.get('/threads/:threadId', function *() {
+  const id = parseInt(this.params.threadId);
+  this.body = db.threads.find((thread) => thread.id == id);
+});
+
+// Root
 router.get('/', function *() {
   this.body = "Ready to receive requests";
 });
