@@ -370,6 +370,13 @@ resource "aws_ecs_service" "service" {
   launch_type     = "FARGATE"
   desired_count   = 1
 
+  # 🔹 Important for CodeDeploy blue/green
+  # - posts  -> CODE_DEPLOY
+  # - users, threads -> normal ECS
+  deployment_controller {
+    type = each.key == "posts" ? "CODE_DEPLOY" : "ECS"
+  }
+
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs_tasks_sg.id]
@@ -383,7 +390,11 @@ resource "aws_ecs_service" "service" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    # CodeDeploy will manage new task definition revisions
+    ignore_changes = [
+      task_definition,
+      desired_count,
+    ]
   }
 
   depends_on = [

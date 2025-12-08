@@ -53,6 +53,7 @@ data "aws_iam_policy_document" "codebuild_assume_role" {
   }
 }
 
+
 resource "aws_iam_role" "codebuild_role" {
   name               = "${var.project_name}-codebuild-role"
   assume_role_policy = data.aws_iam_policy_document.codebuild_assume_role.json
@@ -72,6 +73,28 @@ resource "aws_iam_role_policy_attachment" "codebuild_ecr" {
 resource "aws_iam_role_policy_attachment" "codebuild_s3" {
   role       = aws_iam_role.codebuild_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+# Extra explicit permissions for CloudWatch Logs so CodeBuild can create log groups/streams
+resource "aws_iam_role_policy" "codebuild_logs_inline" {
+  name = "${var.project_name}-codebuild-logs-inline"
+  role = aws_iam_role.codebuild_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 ########################
@@ -108,7 +131,7 @@ resource "aws_codebuild_project" "microforum_build" {
 
   logs_config {
     cloudwatch_logs {
-      group_name  = "/codebuild/${var.project_name}"
+      group_name  = "/aws/codebuild/${var.project_name}" # was /codebuild/...
       stream_name = "build"
     }
   }
@@ -222,6 +245,11 @@ resource "aws_codedeploy_deployment_group" "microforum" {
   service_role_arn       = aws_iam_role.codedeploy_role.arn
   deployment_config_name = "CodeDeployDefault.ECSAllAtOnce"
 
+  deployment_style {
+    deployment_type   = "BLUE_GREEN"
+    deployment_option = "WITH_TRAFFIC_CONTROL"
+  }
+
   auto_rollback_configuration {
     enabled = true
     events  = ["DEPLOYMENT_FAILURE"]
@@ -316,10 +344,11 @@ resource "aws_codepipeline" "microforum" {
     name = "Deploy"
 
     action {
-      name            = "DeployToECSBlueGreen"
-      category        = "Deploy"
-      owner           = "AWS"
-      provider        = "CodeDeploy" # ECS blue/green deploy action through CodeDeploy
+      name     = "DeployToECSBlueGreen"
+      category = "Deploy"
+      owner    = "AWS"
+      # IMPORTANT: use CodeDeployToECS for ECS blue/green deploy
+      provider        = "CodeDeployToECS"
       version         = "1"
       input_artifacts = ["BuildOutput"]
 
@@ -327,9 +356,7 @@ resource "aws_codepipeline" "microforum" {
         ApplicationName                = aws_codedeploy_app.microforum.name
         DeploymentGroupName            = aws_codedeploy_deployment_group.microforum.deployment_group_name
         TaskDefinitionTemplateArtifact = "BuildOutput"
-        TaskDefinitionTemplatePath     = "taskdef.json"
         AppSpecTemplateArtifact        = "BuildOutput"
-        AppSpecTemplatePath            = "appspec.json"
       }
     }
   }
