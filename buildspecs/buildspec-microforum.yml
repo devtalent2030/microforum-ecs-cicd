@@ -4,9 +4,9 @@ env:
   variables:
     AWS_REGION: "ca-central-1"
     PROJECT_NAME: "microforum"
-    USERS_REPO: "123456789012.dkr.ecr.ca-central-1.amazonaws.com/microforum-users"
-    POSTS_REPO: "123456789012.dkr.ecr.ca-central-1.amazonaws.com/microforum-posts"
-    THREADS_REPO: "123456789012.dkr.ecr.ca-central-1.amazonaws.com/microforum-threads"
+    USERS_REPO: "387324564533.dkr.ecr.ca-central-1.amazonaws.com/microforum-users"
+    POSTS_REPO: "387324564533.dkr.ecr.ca-central-1.amazonaws.com/microforum-posts"
+    THREADS_REPO: "387324564533.dkr.ecr.ca-central-1.amazonaws.com/microforum-threads"
 
 phases:
   pre_build:
@@ -14,15 +14,11 @@ phases:
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${USERS_REPO%/*}
-
-      - COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
-      - IMAGE_TAG=${COMMIT_SHA:-latest}
-      - echo "Using image tag: $IMAGE_TAG"
+      - COMMIT_SHA=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c1-7); IMAGE_TAG=${COMMIT_SHA:-latest}; echo "Using image tag: $IMAGE_TAG"
 
   build:
     commands:
       - echo "Building Docker images for users, posts, threads..."
-
       - docker build -t $USERS_REPO:$IMAGE_TAG ./users
       - docker build -t $POSTS_REPO:$IMAGE_TAG ./posts
       - docker build -t $THREADS_REPO:$IMAGE_TAG ./threads
@@ -33,10 +29,10 @@ phases:
       - docker push $USERS_REPO:$IMAGE_TAG
       - docker push $POSTS_REPO:$IMAGE_TAG
       - docker push $THREADS_REPO:$IMAGE_TAG
-
-      # Example: write a small JSON artifact with image tags for the deploy stage
-      - printf '[{"name":"users","imageUri":"%s"},{"name":"posts","imageUri":"%s"},{"name":"threads","imageUri":"%s"}]\n' \
-          "$USERS_REPO:$IMAGE_TAG" "$POSTS_REPO:$IMAGE_TAG" "$THREADS_REPO:$IMAGE_TAG" > imagedefinitions.json
+      - echo "Writing imagedefinitions.json for deploy stage"
+      - printf '[{"name":"users","imageUri":"%s"},{"name":"posts","imageUri":"%s"},{"name":"threads","imageUri":"%s"}]\n' "$USERS_REPO:$IMAGE_TAG" "$POSTS_REPO:$IMAGE_TAG" "$THREADS_REPO:$IMAGE_TAG" > imagedefinitions.json
+      - echo "imagedefinitions.json:"
+      - cat imagedefinitions.json
 
 artifacts:
   files:
