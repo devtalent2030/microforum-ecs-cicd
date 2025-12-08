@@ -14,7 +14,7 @@ phases:
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${USERS_REPO%/*}
-      - COMMIT_SHA=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c1-7); IMAGE_TAG=${COMMIT_SHA:-latest}; echo "Using image tag: $IMAGE_TAG"
+      - "COMMIT_SHA=$(echo \"$CODEBUILD_RESOLVED_SOURCE_VERSION\" | cut -c1-7); IMAGE_TAG=${COMMIT_SHA:-latest}; echo \"Using image tag: $IMAGE_TAG\""
 
   build:
     commands:
@@ -30,7 +30,7 @@ phases:
       - docker push $POSTS_REPO:$IMAGE_TAG
       - docker push $THREADS_REPO:$IMAGE_TAG
       - echo "Writing imagedefinitions.json for deploy stage"
-      - printf '[{"name":"users","imageUri":"%s"},{"name":"posts","imageUri":"%s"},{"name":"threads","imageUri":"%s"}]\n' "$USERS_REPO:$IMAGE_TAG" "$POSTS_REPO:$IMAGE_TAG" "$THREADS_REPO:$IMAGE_TAG" > imagedefinitions.json
+      - "printf '[{\"name\":\"users\",\"imageUri\":\"%s\"},{\"name\":\"posts\",\"imageUri\":\"%s\"},{\"name\":\"threads\",\"imageUri\":\"%s\"}]\\n' \"$USERS_REPO:$IMAGE_TAG\" \"$POSTS_REPO:$IMAGE_TAG\" \"$THREADS_REPO:$IMAGE_TAG\" > imagedefinitions.json"
       - echo "imagedefinitions.json:"
       - cat imagedefinitions.json
 
