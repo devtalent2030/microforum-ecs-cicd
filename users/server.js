@@ -1,11 +1,7 @@
 // users/server.js
 
-const Koa = require('koa');
-const Router = require('koa-router');
-
-const app = new Koa();
-const router = new Router();
-
+const app = require('koa')();
+const router = require('koa-router')();
 const usersDb = require('./db.json');
 
 // ------------------------------
@@ -113,7 +109,6 @@ router.get('/', function* () {
         position: relative;
       }
 
-      /* subtle glow */
       .shell::before {
         content: "";
         position: absolute;
@@ -166,13 +161,13 @@ router.get('/', function* () {
         font-size: 0.75rem;
       }
 
-      .meta strong {
-        color: #e5e7eb;
-      }
-
       .meta span {
         color: var(--text-muted);
         display: block;
+      }
+
+      .meta strong {
+        color: #e5e7eb;
       }
 
       .body {
@@ -334,7 +329,7 @@ router.get('/', function* () {
       }
 
       .endpoint-path {
-        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         font-size: 0.78rem;
         color: #e5e7eb;
       }
@@ -537,8 +532,8 @@ router.get('/', function* () {
           </div>
 
           <p class="footnote">
-            <strong>Demo tip:</strong> you can open the browser Network tab to show these
-            calls going from the ALB DNS to each microservice without exposing any
+            <strong>Demo tip:</strong> open the browser Network tab to show these
+            calls going from the ALB DNS to each microservice, without exposing any
             private IPs.
           </p>
         </div>
@@ -605,6 +600,6 @@ router.get('/', function* () {
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-app.listen(3000, () =>
-  console.log('Users service running on port 3000 with HTML landing page')
-);
+app.listen(3000, () => {
+  console.log('Users service running on port 3000 with HTML landing page');
+});

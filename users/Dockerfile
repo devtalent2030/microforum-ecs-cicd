@@ -1,24 +1,20 @@
 # users/Dockerfile
-# Build an image that contains users/, threads/, and posts/ exactly
-# like your repo structure.
+# Builds the users microservice image. Context = ./users
 
 FROM mhart/alpine-node:7.10.1
 
 # Base directory inside the container
 WORKDIR /srv
 
-# Copy ONLY what we need from the repo root into the image
-# (this matches your tree: users/, posts/, threads/)
-ADD users   ./users
-ADD posts   ./posts
-ADD threads ./threads
-
-# Go into users folder to install dependencies
-WORKDIR /srv/users
+# Install dependencies
+ADD package.json ./
 RUN npm install
+
+# Copy the rest of the users service code (server.js, db.json, etc.)
+ADD . .
 
 # Koa app listens on 3000
 EXPOSE 3000
 
-# IMPORTANT: run the users app directly from /srv/users
+# Run the users app
 CMD ["node", "server.js"]
